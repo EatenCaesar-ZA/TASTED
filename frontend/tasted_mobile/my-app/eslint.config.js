@@ -1,3 +1,8 @@
+/**
+ * ESLint config — TypeScript + React rules for Vite
+ *
+ * For production apps, consider enabling type-aware configs (see README) for stronger checks.
+ */
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'

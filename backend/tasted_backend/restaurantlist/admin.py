@@ -1,3 +1,9 @@
+"""
+Admin — Django admin registrations for app models.
+
+Provides simple management UI for Restaurant, Cuisine, Location, and Menu.
+Search fields on Menu support quick lookups by title or restaurant.
+"""
 from django.contrib import admin  # Imports Django's admin interface tools
 from .models import Restaurant, Cuisine, Location  # Imports your models from models.py
 from .models import Menu

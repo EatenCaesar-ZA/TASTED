@@ -74,8 +74,20 @@ const RestaurantList = () => {
 
       // 🧮 Build query parameters dynamically
       const params = new URLSearchParams();
-      if (selectedCuisine) params.append('cuisines', selectedCuisine);
-      if (selectedLocation) params.append('locations', selectedLocation);
+      if (selectedCuisine) {
+        const match = cuisineOptions.find(
+          c => c.name.toLowerCase() === selectedCuisine.trim().toLowerCase()
+        );
+        if (match) params.append('cuisines', String(match.id));
+        else params.append('cuisines__name', selectedCuisine.trim());
+      }
+      if (selectedLocation) {
+        const match = locationOptions.find(
+          l => l.name.toLowerCase() === selectedLocation.trim().toLowerCase()
+        );
+        if (match) params.append('locations', String(match.id));
+        else params.append('locations__name', selectedLocation.trim());
+      }
       if (searchTerm) params.append('search', searchTerm);
 
       // 🌐 Make GET request to Django REST API
@@ -129,33 +141,37 @@ const RestaurantList = () => {
         style={{ marginBottom: '1rem' }}
         aria-label="Restaurant filters"
       >
-        {/* 🍜 Cuisine dropdown */}
-        <label htmlFor="cuisine-select">Cuisine:</label>
-        <select
-          id="cuisine-select"
+        {/* 🍜 Cuisine input with suggestions */}
+        <label htmlFor="cuisine-input">Cuisine:</label>
+        <input
+          id="cuisine-input"
+          list="cuisine-options"
+          placeholder="Type or choose cuisine"
           value={selectedCuisine}
           onChange={e => setSelectedCuisine(e.target.value)}
-          aria-label="Select cuisine"
-        >
-          <option value="">All Cuisines</option>
+          aria-label="Type or choose cuisine"
+        />
+        <datalist id="cuisine-options">
           {cuisineOptions.map(c => (
-            <option key={c.id} value={String(c.id)}>{c.name}</option>
+            <option key={c.id} value={c.name} />
           ))}
-        </select>
+        </datalist>
 
-        {/* 🌍 Location dropdown */}
-        <label htmlFor="location-select">Location:</label>
-        <select
-          id="location-select"
+        {/* 🌍 Location input with suggestions */}
+        <label htmlFor="location-input">Location:</label>
+        <input
+          id="location-input"
+          list="location-options"
+          placeholder="Type or choose location"
           value={selectedLocation}
           onChange={e => setSelectedLocation(e.target.value)}
-          aria-label="Select location"
-        >
-          <option value="">All Locations</option>
+          aria-label="Type or choose location"
+        />
+        <datalist id="location-options">
           {locationOptions.map(l => (
-            <option key={l.id} value={String(l.id)}>{l.name}</option>
+            <option key={l.id} value={l.name} />
           ))}
-        </select>
+        </datalist>
 
         {/* 🔎 Search input */}
         <label htmlFor="search-input">Search:</label>

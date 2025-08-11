@@ -21,7 +21,7 @@ type BudgetItem = {
 
 // Format numbers as currency using the current locale
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(amount);
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(amount);
 }
 
 const BudgetPlanner: React.FC = () => {
