@@ -1,0 +1,168 @@
+📘 Tasted API — Backend README
+
+📁 File: Tasted_Backend_README.md🔧 Purpose: Explain the structure, purpose, and usage of each backend component for maintainability and debugging.
+
+🧱 Models Overview
+
+Restaurant
+
+Represents a food establishment.
+
+Fields:
+
+name: Name of the restaurant.
+
+description: Optional summary or tagline.
+
+image_url: Optional branding image (external URL).
+
+cuisines: Many-to-many relationship with Cuisine.
+
+locations: Many-to-many relationship with Location.
+
+Linked to Menu via menus related name.
+
+Cuisine
+
+Represents a food category (e.g. Thai, Italian).
+
+Used for filtering and categorization.
+
+Location
+
+Represents a geographic area or delivery zone.
+
+Used for filtering and regional grouping.
+
+Menu
+
+Represents a menu file (PDF or image) uploaded manually.
+
+Fields:
+
+title: Display name of the menu.
+
+file: Uploadable file stored in /media/menus/.
+
+page_number: Optional page number for multi-page menus.
+
+restaurant: ForeignKey linking to a Restaurant.
+
+Automatically sorted by restaurant name, title, and page.
+
+Prevents duplicate entries via unique_together.
+
+🔌 Serializers
+
+RestaurantSerializer
+
+Nested read-only fields:
+
+cuisines, locations, menus
+
+Write-only fields:
+
+cuisine_ids, location_ids for assigning relationships by ID
+
+Used in RestaurantViewSet to expose full restaurant data.
+
+MenuSerializer
+
+Returns:
+
+title, page_number, restaurant
+
+file_url: Full URL to the uploaded file using get_file_url()
+
+get_file_url() builds an absolute path using the request context.
+
+🧠 ViewSets
+
+RestaurantViewSet
+
+Full CRUD for restaurants.
+
+Supports filtering by:
+
+cuisines, locations, menus__title, menus__page_number
+
+Uses .prefetch_related() for efficient nested serialization.
+
+MenuViewSet
+
+Full CRUD for menu files.
+
+Supports filtering by:
+
+restaurant, title, page_number
+
+Allows file uploads via Django Admin or API.
+
+🛠 Admin Configuration
+
+MenuAdmin
+
+Enables file upload and management via Django Admin.
+
+Displays title, restaurant, and page_number.
+
+Searchable by title and restaurant name.
+
+Other Models
+
+Restaurant, Cuisine, and Location are registered for easy data entry.
+
+🌐 API Endpoints
+
+Endpoint
+
+Description
+
+/api/v1/restaurants/
+
+List, filter, and manage restaurants
+
+/api/v1/menus/
+
+Upload and manage menu files
+
+/admin/
+
+Admin panel for manual data entry
+
+/media/menus/...
+
+Access uploaded menu files
+
+🧪 Testing Tips
+
+Add restaurants via Admin or API.
+
+Upload menus via Admin → check /api/v1/restaurants/ for nested menus.
+
+Use query params like:
+
+?menu_title=Lunch
+
+?cuisines=1&locations=2
+
+🧩 Frontend Integration
+
+Use restaurant.menus.map() to render menu links.
+
+Use file_url to display or download menu files.
+
+Example React component:
+
+<a href={menu.file_url} download>
+  {menu.title} {menu.page_number && `(Page ${menu.page_number})`}
+</a>
+
+🧩 Future Modules
+
+Reviews: ratings, comments, user feedback
+
+User accounts: authentication, profiles
+
+Admin enhancements: inline menus, image previews
+

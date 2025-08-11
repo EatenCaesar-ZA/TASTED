@@ -1,22 +1,38 @@
 """
-URL configuration for tasted_backend project.
+Project URLs — Root URL configuration for the Tasted backend.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+Mounts the app API under /api/v1/ and serves MEDIA in development.
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.http import JsonResponse
+from django.conf.urls.static import static
+from django.conf import settings
+
+
+
+# 🩺 Lightweight health check or welcome view
+def api_home(request):
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Welcome to the Tasted API',
+        'version': 'v1',
+        'endpoints': [
+            '/api/v1/restaurants/',
+            '/api/v1/menus/',
+            # Future: '/api/v1/reviews/', '/api/v1/users/', etc.
+        ]
+    })
 
 urlpatterns = [
+    # 🔐 Admin panel
     path('admin/', admin.site.urls),
-]
+
+    # 🍽️ Restaurant-related API (v1)
+    path('api/v1/', include(('restaurantlist.urls', 'restaurantlist'), namespace='restaurantlist')),
+    
+
+    # 🏠 Root route for health check or frontend landing
+    path('', api_home, name='home'),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+

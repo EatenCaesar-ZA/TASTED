@@ -1,5 +1,18 @@
+/**
+ * App.tsx — Root application shell
+ *
+ * Responsibilities:
+ * - Renders the main heading and global layout
+ * - Renders feature modules: RestaurantList (browse/search) and BudgetPlanner (user budgeting)
+ * - Keeps components decoupled so we can add routing or tabs later without refactors
+ *
+ * Notes for future updates (hybrid-ready):
+ * - App can be wrapped in Capacitor/Electron without changes
+ * - Avoids browser-only globals beyond standard Web APIs
+ */
 import React from "react";
 import RestaurantList from "./components/RestaurantList"; // adjust path if needed
+import BudgetPlanner from "./components/BudgetPlanner";
 
 const App: React.FC = () => {
   return (
@@ -10,6 +23,8 @@ const App: React.FC = () => {
 
       {/* Render the restaurant list */}
       <RestaurantList />
+      <hr style={{ margin: '2rem 0' }} />
+      <BudgetPlanner />
     </main>
   );
 };
