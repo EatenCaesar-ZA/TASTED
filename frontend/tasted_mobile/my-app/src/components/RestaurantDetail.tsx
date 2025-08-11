@@ -11,6 +11,7 @@ type Restaurant = {
   name: string;
   description?: string;
   image_url?: string;
+  image?: string | null;
   cuisines?: { name: string }[];
   locations?: { name: string }[];
   menus?: { id: number; title: string; file_url: string; page_number?: number }[];
@@ -51,8 +52,8 @@ const RestaurantDetail: React.FC = () => {
         {restaurant.cuisines?.map(c => c.name).join(', ') || 'No cuisine'} |{' '}
         {restaurant.locations?.map(l => l.name).join(', ') || 'No location'}
       </p>
-      {restaurant.image_url && (
-        <img src={restaurant.image_url} alt={`Image of ${restaurant.name}`} width={300} style={{ borderRadius: 8 }} />
+      {(restaurant.image || restaurant.image_url) && (
+        <img src={restaurant.image || restaurant.image_url} alt={`Image of ${restaurant.name}`} width={300} style={{ borderRadius: 8 }} />
       )}
       {restaurant.description && <p style={{ marginTop: '1rem' }}>{restaurant.description}</p>}
       {(restaurant.min_item_price != null || restaurant.max_item_price != null) && (

@@ -38,8 +38,16 @@ class Restaurant(models.Model):
     cuisines = models.ManyToManyField(Cuisine, related_name='restaurants')
     locations = models.ManyToManyField(Location, related_name='restaurants')
 
-    image_url = models.URLField(blank=True, null=True)  # Optional branding image
+    image_url = models.URLField(blank=True, null=True)  # Optional remote image URL
+    image_file = models.ImageField(
+        upload_to='restaurants/', blank=True, null=True,
+        help_text="Optional uploaded image for the restaurant"
+    )
     description = models.TextField(blank=True)          # Optional summary or tagline
+
+    # Optional manually tagged price range for quick display/filtering
+    min_price_tag = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)
+    max_price_tag = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)
 
     def __str__(self):
         return self.name

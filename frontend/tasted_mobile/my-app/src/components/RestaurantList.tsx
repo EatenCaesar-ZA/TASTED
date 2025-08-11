@@ -25,10 +25,13 @@ type Restaurant = {
   cuisines?: { name: string }[];
   locations?: { name: string }[];
   image_url?: string;
+  image?: string | null;
   menus?: { id: number; title: string; file_url: string }[];
   min_item_price?: number | string | null;
   max_item_price?: number | string | null;
   average_item_price?: number | string | null;
+  min_price_tag?: number | string | null;
+  max_price_tag?: number | string | null;
 };
 
 // Lightweight option type for dropdowns
@@ -248,9 +251,14 @@ const RestaurantList = () => {
               <p style={{ color: '#666' }}>
                 {r.locations?.map(l => l.name).join(', ') || 'No location'}
               </p>
-              {(r.min_item_price != null || r.max_item_price != null) && (
+              {((r.min_price_tag != null && r.max_price_tag != null) || (r.min_item_price != null || r.max_item_price != null)) && (
                 <p style={{ color: '#333', fontSize: '0.9rem' }}>
-                  Price range: {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(Number(r.min_item_price ?? 0))} – {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(Number(r.max_item_price ?? 0))}
+                  {(() => {
+                    const min = r.min_price_tag ?? r.min_item_price;
+                    const max = r.max_price_tag ?? r.max_item_price;
+                    const fmt = (n: any) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(Number(n ?? 0));
+                    return `Price range: ${fmt(min)} – ${fmt(max)}`;
+                  })()}
                   {r.average_item_price != null && (
                     <>
                       {' '}• Avg: {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(Number(r.average_item_price))}

@@ -75,13 +75,23 @@ class RestaurantSerializer(serializers.ModelSerializer):
         source='locations'
     )
 
+    # Prefer uploaded image URL if present; else return image_url
+    image = serializers.SerializerMethodField()
+
+    def get_image(self, obj):
+        request = self.context.get('request')
+        if obj.image_file:
+            return request.build_absolute_uri(obj.image_file.url)
+        return obj.image_url
+
     class Meta:
         model = Restaurant
         fields = [
             'id',
             'name',
             'description',
-            'image_url',
+            'image_url',      # keep for writing URL directly
+            'image',          # resolved URL (uploaded file preferred)
             'cuisines',      # Read-only nested
             'cuisine_ids',   # Write-only for assignment
             'locations',
@@ -90,4 +100,6 @@ class RestaurantSerializer(serializers.ModelSerializer):
             'min_item_price',
             'max_item_price',
             'average_item_price',
+            'min_price_tag',
+            'max_price_tag',
         ]

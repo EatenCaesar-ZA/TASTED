@@ -19,7 +19,10 @@ class MenuAdmin(admin.ModelAdmin):
 
 
 # Registers the Restaurant model so you can add/edit/delete restaurants via the admin site
-admin.site.register(Restaurant)
+@admin.register(Restaurant)
+class RestaurantAdmin(admin.ModelAdmin):
+    list_display = ('name', 'min_price_tag', 'max_price_tag')
+    search_fields = ('name',)
 
 # Registers the Cuisine model so you can manage cuisine types (e.g., Thai, Italian) via admin
 admin.site.register(Cuisine)
