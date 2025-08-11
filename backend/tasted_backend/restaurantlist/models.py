@@ -88,3 +88,25 @@ class Menu(models.Model):
         """
         page = f"Page {self.page_number}" if self.page_number else "Single Page"
         return f"{self.restaurant.name} - {self.title} ({page})"
+
+
+class MenuItem(models.Model):
+    """
+    Represents a single purchasable menu item with a price, associated to a Restaurant.
+    Kept simple to enable restaurant-level price range filtering.
+    """
+
+    restaurant = models.ForeignKey(
+        'Restaurant', related_name='menu_items', on_delete=models.CASCADE
+    )
+    name = models.CharField(max_length=120)
+    price = models.DecimalField(max_digits=8, decimal_places=2)
+
+    class Meta:
+        ordering = ['restaurant__name', 'name']
+        indexes = [
+            models.Index(fields=['price']),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.restaurant.name} — {self.name} ({self.price})"

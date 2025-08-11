@@ -20,6 +20,7 @@ from django_filters.rest_framework import DjangoFilterBackend, FilterSet, BaseIn
 
 # ✅ Local models and serializers
 from .models import Restaurant, Menu, Cuisine, Location
+from django.db.models import Min, Max, Avg
 from .serializers import RestaurantSerializer, MenuSerializer, CuisineSerializer, LocationSerializer
 
 # 🍽️ MenuViewSet — CRUD for individual menu files
@@ -84,6 +85,10 @@ class RestaurantFilter(FilterSet):
         label='Menu Page Number'
     )
 
+    # ✅ Price range filtering via related MenuItem
+    min_price = CharFilter(field_name='menu_items__price', lookup_expr='gte')
+    max_price = CharFilter(field_name='menu_items__price', lookup_expr='lte')
+
     class Meta:
         model = Restaurant
         fields = [
@@ -93,6 +98,8 @@ class RestaurantFilter(FilterSet):
             'locations',
             'menu_title',
             'menu_page',
+            'min_price',
+            'max_price',
         ]
 
 # 🏪 RestaurantViewSet — full CRUD with filtering, search, and ordering
@@ -108,7 +115,14 @@ class RestaurantViewSet(viewsets.ModelViewSet):
       • ?search=<term>                                   → search by restaurant name
       • ?ordering=<field>                                → order by name or other fields
     """
-    queryset = Restaurant.objects.all()
+    queryset = (
+        Restaurant.objects.all()
+        .annotate(
+            min_item_price=Min('menu_items__price'),
+            max_item_price=Max('menu_items__price'),
+            average_item_price=Avg('menu_items__price'),
+        )
+    )
     serializer_class = RestaurantSerializer
     permission_classes = [AllowAny]
 

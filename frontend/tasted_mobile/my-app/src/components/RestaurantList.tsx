@@ -14,7 +14,8 @@
  */
 import { useState, useEffect } from 'react';
 import api from '../api';
-import RestaurantMenus from './RestaurantMenus'; // 📄 Renders downloadable menus
+import { Link } from 'react-router-dom';
+// import RestaurantMenus from './RestaurantMenus'; // Not needed on list cards anymore
 
 // ✅ Strongly typed Restaurant interface for clarity and maintainability
 // Data model from API: Restaurant object with nested relations for display
@@ -25,6 +26,9 @@ type Restaurant = {
   locations?: { name: string }[];
   image_url?: string;
   menus?: { id: number; title: string; file_url: string }[];
+  min_item_price?: number | string | null;
+  max_item_price?: number | string | null;
+  average_item_price?: number | string | null;
 };
 
 // Lightweight option type for dropdowns
@@ -55,6 +59,8 @@ const RestaurantList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCuisine, setSelectedCuisine] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
 
   const [cuisineOptions, setCuisineOptions] = useState<Option[]>([]);
   const [locationOptions, setLocationOptions] = useState<Option[]>([]);
@@ -89,6 +95,8 @@ const RestaurantList = () => {
         else params.append('locations__name', selectedLocation.trim());
       }
       if (searchTerm) params.append('search', searchTerm);
+      if (minPrice) params.append('min_price', minPrice);
+      if (maxPrice) params.append('max_price', maxPrice);
 
       // 🌐 Make GET request to Django REST API
       const response = await api.get(`/api/v1/restaurants/?${params.toString()}`);
@@ -184,7 +192,38 @@ const RestaurantList = () => {
           aria-label="Search by restaurant name"
         />
 
+        {/* 💸 Price range */}
+        <label htmlFor="min-price">Min price:</label>
+        <input
+          id="min-price"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          value={minPrice}
+          onChange={e => setMinPrice(e.target.value)}
+          aria-label="Minimum price"
+        />
+        <label htmlFor="max-price">Max price:</label>
+        <input
+          id="max-price"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="100.00"
+          value={maxPrice}
+          onChange={e => setMaxPrice(e.target.value)}
+          aria-label="Maximum price"
+        />
+
         <button type="submit">Apply Filters</button>
+        {/* Quick presets for price range */}
+        <div style={{ marginTop: '0.5rem' }}>
+          <button type="button" onClick={() => { setMinPrice('0'); setMaxPrice('50'); }}>Under 50</button>
+          <button type="button" onClick={() => { setMinPrice('50'); setMaxPrice('100'); }} style={{ marginLeft: '0.5rem' }}>50–100</button>
+          <button type="button" onClick={() => { setMinPrice('100'); setMaxPrice('200'); }} style={{ marginLeft: '0.5rem' }}>100–200</button>
+          <button type="button" onClick={() => { setMinPrice(''); setMaxPrice(''); }} style={{ marginLeft: '0.5rem' }}>Clear</button>
+        </div>
       </form>
 
       {/* 🧾 Feedback messages */}
@@ -195,33 +234,34 @@ const RestaurantList = () => {
       )}
 
       {/* 📋 Restaurant list */}
-      <ul>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
         {restaurants.map(r => (
-          <li key={r.id} style={{ marginBottom: '2rem' }}>
-            <h3>{r.name}</h3>
-            <p>
-              {/* 🧠 Handle both object and fallback string formats */}
-              {r.cuisines?.map(c => c.name).join(', ') || 'No cuisine'} |{' '}
-              {r.locations?.map(l => l.name).join(', ') || 'No location'}
-            </p>
-
-            {/* 🖼️ Optional image */}
-            {r.image_url && (
-              <img
-                src={r.image_url}
-                alt={`Image of ${r.name}`}
-                width="200"
-                style={{ borderRadius: '8px' }}
-              />
-            )}
-
-            {/* 📄 Render menus if available */}
-            {r.menus && r.menus.length > 0 && (
-              <RestaurantMenus menus={r.menus} />
-            )}
-          </li>
+          <Link key={r.id} to={`/restaurants/${r.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div style={{ border: '1px solid #eee', borderRadius: 8, padding: '1rem', height: '100%' }}>
+              {r.image_url && (
+                <img src={r.image_url} alt={`Image of ${r.name}`} width="100%" style={{ borderRadius: 6, objectFit: 'cover', maxHeight: 140 }} />
+              )}
+              <h3 style={{ marginTop: '0.75rem' }}>{r.name}</h3>
+              <p style={{ color: '#666' }}>
+                {r.cuisines?.map(c => c.name).join(', ') || 'No cuisine'}
+              </p>
+              <p style={{ color: '#666' }}>
+                {r.locations?.map(l => l.name).join(', ') || 'No location'}
+              </p>
+              {(r.min_item_price != null || r.max_item_price != null) && (
+                <p style={{ color: '#333', fontSize: '0.9rem' }}>
+                  Price range: {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(Number(r.min_item_price ?? 0))} – {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(Number(r.max_item_price ?? 0))}
+                  {r.average_item_price != null && (
+                    <>
+                      {' '}• Avg: {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(Number(r.average_item_price))}
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          </Link>
         ))}
-      </ul>
+      </div>
     </div>
   );
 };

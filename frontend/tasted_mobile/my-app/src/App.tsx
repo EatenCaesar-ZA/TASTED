@@ -11,21 +11,29 @@
  * - Avoids browser-only globals beyond standard Web APIs
  */
 import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import RestaurantList from "./components/RestaurantList"; // adjust path if needed
 import BudgetPlanner from "./components/BudgetPlanner";
+import RestaurantDetail from "./components/RestaurantDetail";
 
 const App: React.FC = () => {
   return (
-    <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <h1>🍽️ TASTED</h1>
-      <p>Welcome to your restaurant reference app!</p>
-      <p>Built with Django REST + React + TypeScript</p>
+    <BrowserRouter>
+      <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
+        <h1>🍽️ TASTED</h1>
+        <p>Welcome to your restaurant reference app!</p>
+        <p>Built with Django REST + React + TypeScript</p>
 
-      {/* Render the restaurant list */}
-      <RestaurantList />
-      <hr style={{ margin: '2rem 0' }} />
-      <BudgetPlanner />
-    </main>
+        <Routes>
+          <Route path="/" element={<>
+            <RestaurantList />
+            <hr style={{ margin: '2rem 0' }} />
+            <BudgetPlanner />
+          </>} />
+          <Route path="/restaurants/:id" element={<RestaurantDetail />} />
+        </Routes>
+      </main>
+    </BrowserRouter>
   );
 };
 

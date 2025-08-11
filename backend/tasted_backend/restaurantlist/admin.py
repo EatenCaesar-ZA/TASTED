@@ -6,7 +6,7 @@ Search fields on Menu support quick lookups by title or restaurant.
 """
 from django.contrib import admin  # Imports Django's admin interface tools
 from .models import Restaurant, Cuisine, Location  # Imports your models from models.py
-from .models import Menu
+from .models import Menu, MenuItem
 
 @admin.register(Menu)
 class MenuAdmin(admin.ModelAdmin):
@@ -26,3 +26,8 @@ admin.site.register(Cuisine)
 
 # Registers the Location model so you can manage geographic locations (e.g., Durban, Cape Town)
 admin.site.register(Location)
+
+@admin.register(MenuItem)
+class MenuItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'restaurant', 'price')
+    search_fields = ('name', 'restaurant__name')

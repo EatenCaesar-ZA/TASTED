@@ -8,7 +8,7 @@ Responsibilities:
 """
 
 from rest_framework import serializers
-from .models import Restaurant, Cuisine, Location, Menu
+from .models import Restaurant, Cuisine, Location, Menu, MenuItem
 
 # 🌱 Cuisine Serializer
 class CuisineSerializer(serializers.ModelSerializer):
@@ -56,6 +56,10 @@ class RestaurantSerializer(serializers.ModelSerializer):
     cuisines = CuisineSerializer(many=True, read_only=True)
     locations = LocationSerializer(many=True, read_only=True)
     menus = MenuSerializer(many=True, read_only=True)
+    # Aggregate min/max price to support simple price range hints in detail
+    min_item_price = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
+    max_item_price = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
+    average_item_price = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
 
     # Write-only fields for assigning relationships by ID
     cuisine_ids = serializers.PrimaryKeyRelatedField(
@@ -83,4 +87,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
             'locations',
             'location_ids',
             'menus',         # Read-only nested
+            'min_item_price',
+            'max_item_price',
+            'average_item_price',
         ]
