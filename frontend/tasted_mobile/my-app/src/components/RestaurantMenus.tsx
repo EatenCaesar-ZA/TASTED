@@ -21,6 +21,7 @@ interface Props {
 }
 
 // Functional component to display downloadable menus for a restaurant
+// If more metadata is needed (e.g., file size), extend the Menu interface
 const RestaurantMenus: React.FC<Props> = ({ menus }) => {
   // If no menus are available, show a fallback message
   if (!menus || menus.length === 0) {

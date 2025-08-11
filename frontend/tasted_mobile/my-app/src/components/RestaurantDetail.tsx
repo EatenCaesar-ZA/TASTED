@@ -26,6 +26,7 @@ const RestaurantDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Effect: fetch the restaurant whenever the :id route param changes
   useEffect(() => {
     async function load() {
       try {

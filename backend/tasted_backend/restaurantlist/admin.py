@@ -10,10 +10,7 @@ from .models import Menu, MenuItem
 
 @admin.register(Menu)
 class MenuAdmin(admin.ModelAdmin):
-    """
-    Admin interface for uploading and managing menu files.
-    Allows search by title and restaurant name.
-    """
+    """Admin: manage menu uploads and search by title/restaurant."""
     list_display = ('title', 'restaurant', 'page_number')
     search_fields = ('title', 'restaurant__name')
 
@@ -21,6 +18,7 @@ class MenuAdmin(admin.ModelAdmin):
 # Registers the Restaurant model so you can add/edit/delete restaurants via the admin site
 @admin.register(Restaurant)
 class RestaurantAdmin(admin.ModelAdmin):
+    """Admin: manage restaurants, show manual price tags for quick review."""
     list_display = ('name', 'min_price_tag', 'max_price_tag')
     search_fields = ('name',)
 
@@ -32,5 +30,6 @@ admin.site.register(Location)
 
 @admin.register(MenuItem)
 class MenuItemAdmin(admin.ModelAdmin):
+    """Admin: manage individual menu items and their prices."""
     list_display = ('name', 'restaurant', 'price')
     search_fields = ('name', 'restaurant__name')

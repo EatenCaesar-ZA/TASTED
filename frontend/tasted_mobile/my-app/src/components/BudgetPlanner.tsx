@@ -25,17 +25,25 @@ function formatCurrency(amount: number): string {
 }
 
 const BudgetPlanner: React.FC = () => {
+  // Controlled inputs for the item being created
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState<string>('');
+
+  // State: list of items the user added
   const [items, setItems] = useState<BudgetItem[]>([]);
 
+  // Derived: numeric version of the current input price for live preview
   const parsedPrice = useMemo(() => {
     const n = Number(itemPrice);
     return Number.isFinite(n) ? n : 0;
   }, [itemPrice]);
 
+  // Derived: sum of all item prices
   const total = useMemo(() => items.reduce((sum, item) => sum + item.price, 0), [items]);
 
+  /**
+   * Generate robust ids that work in browsers and hybrid runtimes.
+   */
   function generateId(): string {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
       return (crypto as any).randomUUID();
@@ -43,6 +51,9 @@ const BudgetPlanner: React.FC = () => {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
+  /**
+   * Add the current item to the list with guard clauses for empty/invalid input.
+   */
   function addItem(e: React.FormEvent) {
     e.preventDefault();
     const price = Number(itemPrice);
@@ -57,6 +68,9 @@ const BudgetPlanner: React.FC = () => {
     setItemPrice('');
   }
 
+  /**
+   * Remove an item by id.
+   */
   function removeItem(id: string) {
     setItems(prev => prev.filter(i => i.id !== id));
   }

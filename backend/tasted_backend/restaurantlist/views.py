@@ -42,6 +42,7 @@ class MenuViewSet(viewsets.ModelViewSet):
 
 # 🍜 CuisineViewSet — list cuisines for filters
 class CuisineViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only list/retrieve for cuisines used as filter options."""
     queryset = Cuisine.objects.all().order_by('name')
     serializer_class = CuisineSerializer
     permission_classes = [AllowAny]
@@ -49,6 +50,7 @@ class CuisineViewSet(viewsets.ReadOnlyModelViewSet):
 
 # 📍 LocationViewSet — list locations for filters
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only list/retrieve for locations used as filter options."""
     queryset = Location.objects.all().order_by('name')
     serializer_class = LocationSerializer
     permission_classes = [AllowAny]

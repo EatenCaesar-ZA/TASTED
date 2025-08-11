@@ -12,7 +12,7 @@ from .models import Restaurant, Cuisine, Location, Menu, MenuItem
 
 # 🌱 Cuisine Serializer
 class CuisineSerializer(serializers.ModelSerializer):
-    """Serializes Cuisine objects for read-only display."""
+    """Read-only serializer for cuisine entities used for filtering and display."""
     class Meta:
         model = Cuisine
         fields = ['id', 'name']
@@ -20,7 +20,7 @@ class CuisineSerializer(serializers.ModelSerializer):
 
 # 📍 Location Serializer
 class LocationSerializer(serializers.ModelSerializer):
-    """Serializes Location objects for read-only display."""
+    """Read-only serializer for location entities used for filtering and display."""
     class Meta:
         model = Location
         fields = ['id', 'name']
@@ -28,6 +28,7 @@ class LocationSerializer(serializers.ModelSerializer):
 
 # 📄 Menu Serializer
 class MenuSerializer(serializers.ModelSerializer):
+    """Serializer for menu uploads, exposing a full file URL for the frontend."""
     # Custom field to return full URL to the uploaded file
     file_url = serializers.SerializerMethodField()
 
@@ -48,9 +49,12 @@ class MenuSerializer(serializers.ModelSerializer):
 
 # 🍽️ Restaurant Serializer
 class RestaurantSerializer(serializers.ModelSerializer):
-    """
-    Serializes Restaurant objects with nested read-only fields
-    and write-only ID fields for cuisine and location assignment.
+    """Serializer for restaurants with nested relations and summary price fields.
+
+    - Nested read-only fields: cuisines, locations, menus
+    - Write-only assignment fields: cuisine_ids, location_ids
+    - Summary fields: min/max/avg item prices from related MenuItems
+    - Image resolution: prefer uploaded file URL, fall back to image_url
     """
     # Nested read-only representations
     cuisines = CuisineSerializer(many=True, read_only=True)

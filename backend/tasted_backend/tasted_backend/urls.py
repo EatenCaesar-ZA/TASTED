@@ -13,6 +13,7 @@ from django.conf import settings
 
 # 🩺 Lightweight health check or welcome view
 def api_home(request):
+    """Minimal health-check endpoint returning API status and top-level routes."""
     return JsonResponse({
         'status': 'ok',
         'message': 'Welcome to the Tasted API',
