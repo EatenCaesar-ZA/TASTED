@@ -1,0 +1,221 @@
+/**
+ * filters.css — Styling for the modular filter system
+ *
+ * Uses app theme tokens so it automatically adapts when ThemeSwitcher changes
+ * classes on <html>. Tokens: --panel, --border, --text, --muted, --primary,
+ * --primary-contrast.
+ */
+
+/* 🎛️ Main filter container */
+.filter-container {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+}
+
+.filter-title {
+  margin: 0 0 0.5rem 0;
+  color: var(--primary);
+  font-size: 1.2rem;
+}
+
+.filter-subtitle {
+  margin: 0 0 1rem 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+/* 📐 Filter grid layout */
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+  min-width: 0; /* prevent overflow inside grid columns */
+}
+
+/* 🎯 Individual filter groups */
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-label {
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.filter-input {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+  background: var(--panel);
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.filter-input:disabled {
+  background-color: color-mix(in srgb, var(--panel) 80%, black);
+  cursor: not-allowed;
+}
+
+.filter-help {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+/* 💸 Price filter specific styles */
+.price-inputs {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+  flex-wrap: wrap; /* allow inputs to wrap on narrow columns */
+}
+
+.price-input-group {
+  flex: 1 1 160px; /* grow, shrink, base width */
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.price-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.price-input {
+  min-width: 0; /* Allow flex shrinking */
+}
+
+/* Visually hidden but accessible labels */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.price-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.preset-button {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.preset-button:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.preset-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.clear-button {
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
+.clear-button:hover:not(:disabled) {
+  background: var(--muted);
+  color: var(--primary-contrast);
+}
+
+/* 🎬 Filter actions */
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.apply-button {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  border: 1px solid var(--primary);
+}
+
+.apply-button:hover:not(:disabled) {
+  filter: brightness(0.9);
+}
+
+.reset-button {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.reset-button:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.filter-note {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+  margin: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.active-filters-summary {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* 📱 Responsive design */
+@media (max-width: 768px) {
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .price-inputs {
+    flex-direction: column;
+  }
+
+  .filter-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .apply-button,
+  .reset-button {
+    width: 100%;
+  }
+}

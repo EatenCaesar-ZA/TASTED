@@ -1,16 +1,33 @@
 :root {
+  --bg: #111416;
+  --panel: #182024;
+  --text: #eaeaea;
+  --muted: #a5a5a5;
+  --primary: #d97706; /* default amber */
+  --primary-contrast: #0b0b0b;
+  --border: #2a3237;
+
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  color-scheme: dark;
+  color: var(--text);
+  background-color: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Theme tokens: users can pick one of three palettes */
+.theme-red {
+  --primary: #ef4444;
+}
+.theme-amber {
+  --primary: #d97706;
+}
+.theme-teal {
+  --primary: #14b8a6;
 }
 
 a {
@@ -22,12 +39,14 @@ a:hover {
   color: #535bf2;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+body { margin: 0; min-width: 320px; }
+
+/* Respect iOS/Android safe areas */
+main {
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 h1 {
@@ -37,32 +56,44 @@ h1 {
 
 button {
   border-radius: 8px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--panel);
+  color: var(--text);
   cursor: pointer;
   transition: border-color 0.25s;
+  min-height: 44px; /* comfortable tap target */
+  min-width: 44px;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: var(--primary);
 }
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+/* Panels and cards helper classes used in components inline styles */
+.card {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
+
+/* Form controls for mobile */
+input, select, textarea {
+  background-color: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+input::placeholder, textarea::placeholder { color: var(--muted); }
+label { color: var(--primary); font-weight: 600; margin-right: 8px; }
+
+/* Accent helpers */
+.accent-text { color: var(--primary); }
+.accent-border { border-color: var(--primary) !important; }

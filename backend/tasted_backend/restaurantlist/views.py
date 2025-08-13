@@ -16,11 +16,17 @@ from rest_framework import viewsets, filters
 from rest_framework.permissions import AllowAny
 
 # ✅ Filtering support
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, BaseInFilter, CharFilter
+from django_filters.rest_framework import (
+    DjangoFilterBackend,
+    FilterSet,
+    BaseInFilter,
+    CharFilter,
+    NumberFilter,
+)
 
 # ✅ Local models and serializers
 from .models import Restaurant, Menu, Cuisine, Location
-from django.db.models import Min, Max, Avg
+from django.db.models import Min, Max, Avg, Q
 from .serializers import RestaurantSerializer, MenuSerializer, CuisineSerializer, LocationSerializer
 
 # 🍽️ MenuViewSet — CRUD for individual menu files
@@ -35,7 +41,7 @@ class MenuViewSet(viewsets.ModelViewSet):
       • PUT/PATCH /api/menus/<id>/→ update menu
       • DELETE /api/menus/<id>/   → delete menu
     """
-    queryset = Menu.objects.all()
+    queryset = Menu.objects.all().order_by('title', 'page_number')  # 🔧 Explicit ordering for consistent pagination
     serializer_class = MenuSerializer
     permission_classes = [AllowAny]
 
@@ -56,6 +62,16 @@ class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
 
 # 🧠 RestaurantFilter — supports multi-value and related model filtering
+class CharInFilter(BaseInFilter, CharFilter):
+    """Helper to support CSV or repeated query params for char fields."""
+    pass
+
+
+class NumberInFilter(BaseInFilter, NumberFilter):
+    """Helper to support CSV or repeated query params for numeric fields."""
+    pass
+
+
 class RestaurantFilter(FilterSet):
     """
     Custom filters to support multi-value and related model queries.
@@ -68,12 +84,15 @@ class RestaurantFilter(FilterSet):
     """
 
     # ✅ Multi-value filters for related cuisines and locations (by name)
-    cuisines__name = BaseInFilter(field_name='cuisines__name', lookup_expr='in')
-    locations__name = BaseInFilter(field_name='locations__name', lookup_expr='in')
+    cuisines__name = CharInFilter(field_name='cuisines__name', lookup_expr='in')
+    locations__name = CharInFilter(field_name='locations__name', lookup_expr='in')
+    # Flexible single-value, case-insensitive filters (synonyms for convenience)
+    cuisine = CharFilter(field_name='cuisines__name', lookup_expr='icontains')
+    location = CharFilter(field_name='locations__name', lookup_expr='icontains')
 
     # ✅ Support filtering by related IDs as well (useful for dropdowns)
-    cuisines = BaseInFilter(field_name='cuisines__id', lookup_expr='in')
-    locations = BaseInFilter(field_name='locations__id', lookup_expr='in')
+    cuisines = NumberInFilter(field_name='cuisines__id', lookup_expr='in')
+    locations = NumberInFilter(field_name='locations__id', lookup_expr='in')
 
     # ✅ Filters for related Menu model (via ForeignKey with related_name='menus')
     menu_title = CharFilter(
@@ -87,21 +106,43 @@ class RestaurantFilter(FilterSet):
         label='Menu Page Number'
     )
 
-    # ✅ Price range filtering via related MenuItem
-    min_price = CharFilter(field_name='menu_items__price', lookup_expr='gte')
-    max_price = CharFilter(field_name='menu_items__price', lookup_expr='lte')
+    # ✅ Price range filtering (less strict):
+    # - min_price: allow restaurants with ANY menu item >= value OR tagged max >= value
+    # - max_price: allow restaurants with ANY menu item <= value OR tagged min <= value
+    # - price: single target value; include restaurants whose range (items or tags) includes the value
+    min_price = NumberFilter(method='filter_min_price')
+    max_price = NumberFilter(method='filter_max_price')
+    price = NumberFilter(method='filter_price')
+
+    def filter_min_price(self, queryset, name, value):
+        """Use price TAGS only: include restaurants with min_price_tag >= value."""
+        q = Q(min_price_tag__isnull=False, min_price_tag__gte=value)
+        return queryset.filter(q).distinct()
+
+    def filter_max_price(self, queryset, name, value):
+        """Use price TAGS only: include restaurants with max_price_tag <= value."""
+        q = Q(max_price_tag__isnull=False, max_price_tag__lte=value)
+        return queryset.filter(q).distinct()
+
+    def filter_price(self, queryset, name, value):
+        """Use price TAGS only: include restaurants where min_price_tag <= value <= max_price_tag."""
+        q_tags_range = Q(min_price_tag__isnull=False, max_price_tag__isnull=False) & Q(min_price_tag__lte=value) & Q(max_price_tag__gte=value)
+        return queryset.filter(q_tags_range).distinct()
 
     class Meta:
         model = Restaurant
         fields = [
             'cuisines__name',
             'locations__name',
+            'cuisine',
+            'location',
             'cuisines',
             'locations',
             'menu_title',
             'menu_page',
             'min_price',
             'max_price',
+            'price',
         ]
 
 # 🏪 RestaurantViewSet — full CRUD with filtering, search, and ordering
@@ -124,6 +165,7 @@ class RestaurantViewSet(viewsets.ModelViewSet):
             max_item_price=Max('menu_items__price'),
             average_item_price=Avg('menu_items__price'),
         )
+        .order_by('name')  # 🔧 Explicit ordering for consistent pagination
     )
     serializer_class = RestaurantSerializer
     permission_classes = [AllowAny]
@@ -139,7 +181,7 @@ class RestaurantViewSet(viewsets.ModelViewSet):
     filterset_class = RestaurantFilter
 
     # ✅ Search by restaurant name (and description)
-    search_fields = ['name', 'description']
+    search_fields = ['name', 'description', 'cuisines__name', 'locations__name']
 
     # ✅ Allow ordering by name
     ordering_fields = ['name']

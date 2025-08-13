@@ -3,13 +3,16 @@
  *
  * Responsibilities:
  * - Fetch restaurants from the backend with optional filters (cuisine, location, name search)
- * - Use modular filter system with equal priority for all filters
+ * - Fetch filter option lists (cuisines, locations)
  * - Integrate with MenuViewer for inline menu display
  * - Provide accessible form controls and clear loading/error states
  * - Support budget integration through menu browsing
  *
- * REBUILT: Now uses modular filter system where ALL FILTERS HAVE EQUAL PRIORITY
- * No filter overrides another - they all work together harmoniously
+ * Extension points:
+ * - Add pagination controls (we already accept paginated or array responses)
+ * - Add client-side caching (React Query/SWR) to avoid repeat fetches
+ * - Move inline styles to CSS modules or Tailwind for hybrid builds
+ * - Add menu comparison features
  */
 import { useState, useEffect } from 'react';
 import api from '../api';
@@ -17,12 +20,26 @@ import { Link } from 'react-router-dom';
 import CollapsibleSection from './CollapsibleSection';
 import MenuViewer from './MenuViewer';
 import BudgetPlanner from './BudgetPlanner';
-import FilterContainer from './filters/FilterContainer';
-import type { FilterState, Restaurant } from '../types/FilterTypes';
-import { buildQueryParams, paramsToURLSearchParams, hasActiveFilters } from '../utils/filterUtils';
-import '../styles/filters.css';
 
-// Restaurant type is now imported from FilterTypes for consistency
+// ✅ Strongly typed Restaurant interface for clarity and maintainability
+// Data model from API: Restaurant object with nested relations for display
+type Restaurant = {
+  id: number;
+  name: string;
+  cuisines?: { name: string }[];
+  locations?: { name: string }[];
+  image_url?: string;
+  image?: string | null;
+  menus?: { id: number; title: string; file_url: string; page_number?: number }[];
+  min_item_price?: number | string | null;
+  max_item_price?: number | string | null;
+  average_item_price?: number | string | null;
+  min_price_tag?: number | string | null;
+  max_price_tag?: number | string | null;
+};
+
+// Lightweight option type for dropdowns
+type Option = { id: number; name: string };
 
 // Menu data structure for the viewer
 type Menu = {
@@ -53,7 +70,49 @@ function unwrapResults<T>(data: unknown): T[] {
   return [];
 }
 
-// Helper functions removed - no longer needed with backend filtering
+// Helper: robustly read price bounds from various possible field names
+function toNumber(value: unknown): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function getRestaurantPriceRange(r: any): { lower: number; upper: number } | null {
+  // Try multiple schema variants that might be present depending on creation path
+  const minCandidates = [
+    r?.min_price_tag,
+    r?.min_item_price,
+    r?.min_price,
+    r?.price_min,
+    r?.minPrice,
+    r?.min_price_range,
+  ];
+  const maxCandidates = [
+    r?.max_price_tag,
+    r?.max_item_price,
+    r?.max_price,
+    r?.price_max,
+    r?.maxPrice,
+    r?.max_price_range,
+  ];
+  const avgCandidates = [r?.average_item_price, r?.avg_price, r?.averagePrice];
+
+  const minVal = minCandidates.map(toNumber).find(v => v !== undefined);
+  const maxVal = maxCandidates.map(toNumber).find(v => v !== undefined);
+  const avgVal = avgCandidates.map(toNumber).find(v => v !== undefined);
+
+  if (minVal === undefined && maxVal === undefined && avgVal === undefined) {
+    return null;
+  }
+  if (minVal !== undefined && maxVal !== undefined) {
+    return { lower: minVal, upper: maxVal };
+  }
+  if (avgVal !== undefined) {
+    return { lower: avgVal, upper: avgVal };
+  }
+  // Only one bound known; use it for both as a narrow range
+  const known = (minVal ?? maxVal) as number;
+  return { lower: known, upper: known };
+}
 
 /**
  * 📦 RestaurantList component
@@ -67,8 +126,17 @@ const RestaurantList = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 🎛️ NEW: Unified filter state managed by FilterContainer
-  const [currentFilters, setCurrentFilters] = useState<FilterState | null>(null);
+  // 🔍 Filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCuisine, setSelectedCuisine] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  // Indicates filters restored from storage; prevents premature fetch
+  const [filtersInitialized, setFiltersInitialized] = useState(false);
+
+  const [cuisineOptions, setCuisineOptions] = useState<Option[]>([]);
+  const [locationOptions, setLocationOptions] = useState<Option[]>([]);
 
   // 🍽️ Menu viewer state
   const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);
@@ -149,30 +217,44 @@ const RestaurantList = () => {
   };
 
   /**
-   * 🔄 NEW: Fetch restaurants using modular filter system
-   * ALL FILTERS HAVE EQUAL PRIORITY - they work together, none override others
+   * 🔄 Fetch restaurants from Django API with optional filters
+   * Filters are passed as query parameters: cuisines, locations, and search
+   */
+  /**
+   * Fetch restaurants from API applying current filters.
+   * Accepts both paginated and non-paginated responses.
    */
   const fetchRestaurants = async () => {
-    if (!currentFilters || !currentFilters.isInitialized) {
-      return; // Wait for filters to be initialized
-    }
-
     try {
       setLoading(true);
       setError('');
 
-      // 🎯 Build query parameters from unified filter state
-      // All filters are applied equally - no priority system
-      const queryParams = buildQueryParams(
-        currentFilters,
-        currentFilters.cuisine.cuisineOptions,
-        currentFilters.location.locationOptions
-      );
-      
-      const urlParams = paramsToURLSearchParams(queryParams);
+      // 🧮 Build query parameters dynamically
+      const params = new URLSearchParams();
+      if (selectedCuisine) {
+        const match = cuisineOptions.find(
+          c => c.name.toLowerCase() === selectedCuisine.trim().toLowerCase()
+        );
+        // If the user selected a known option, filter by ID (supports multi-value too)
+        if (match) params.append('cuisines', String(match.id));
+        // If the user typed free text, use the backend's icontains alias
+        else params.append('cuisine', selectedCuisine.trim());
+      }
+      if (selectedLocation) {
+        const match = locationOptions.find(
+          l => l.name.toLowerCase() === selectedLocation.trim().toLowerCase()
+        );
+        // If the user selected a known option, filter by ID
+        if (match) params.append('locations', String(match.id));
+        // Free text: use icontains alias on backend
+        else params.append('location', selectedLocation.trim());
+      }
+      if (searchTerm) params.append('search', searchTerm);
+      if (minPrice) params.append('min_price', minPrice);
+      if (maxPrice) params.append('max_price', maxPrice);
 
       // 🌐 Make GET request to Django REST API
-      const response = await api.get(`/api/v1/restaurants/?${urlParams.toString()}`);
+      const response = await api.get(`/api/v1/restaurants/?${params.toString()}`);
       const list = unwrapResults<Restaurant>(response.data);
       setRestaurants(list);
     } catch (err: unknown) {
@@ -188,41 +270,151 @@ const RestaurantList = () => {
     }
   };
 
-  // 🎛️ NEW: Handle filter changes from FilterContainer
-  const handleFiltersChange = (newFilters: FilterState) => {
-    setCurrentFilters(newFilters);
-  };
-
-  // 🔄 NEW: Handle filter application
-  const handleFiltersApply = () => {
-    fetchRestaurants();
-  };
-
-  // 🚀 NEW: Fetch restaurants when filters are initialized or changed
+  // 🚀 Restore filters on mount, then trigger initial fetch once
   useEffect(() => {
-    if (currentFilters && currentFilters.isInitialized) {
+    try {
+      const raw = localStorage.getItem('tasted-filters');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setSearchTerm(parsed.searchTerm ?? '');
+        setSelectedCuisine(parsed.selectedCuisine ?? '');
+        setSelectedLocation(parsed.selectedLocation ?? '');
+        setMinPrice(parsed.minPrice ?? '');
+        setMaxPrice(parsed.maxPrice ?? '');
+      }
+    } catch {}
+    setFiltersInitialized(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // After filters are initialized, perform the initial fetch
+  useEffect(() => {
+    if (filtersInitialized) {
       fetchRestaurants();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentFilters?.isInitialized]);
+  }, [filtersInitialized]);
+
+  // 💾 Persist filters to localStorage when they change
+  useEffect(() => {
+    const toSave = {
+      searchTerm,
+      selectedCuisine,
+      selectedLocation,
+      minPrice,
+      maxPrice,
+    };
+    try {
+      localStorage.setItem('tasted-filters', JSON.stringify(toSave));
+    } catch {}
+  }, [searchTerm, selectedCuisine, selectedLocation, minPrice, maxPrice]);
+
+  // 🔁 Load filter option lists (cuisines, locations) on mount
+  useEffect(() => {
+    async function loadOptions() {
+      try {
+        const [cRes, lRes] = await Promise.all([
+          api.get('/api/v1/cuisines/'),
+          api.get('/api/v1/locations/'),
+        ]);
+        setCuisineOptions(unwrapResults<Option>(cRes.data));
+        setLocationOptions(unwrapResults<Option>(lRes.data));
+             } catch {
+         // silent fail; options remain empty
+       }
+    }
+    loadOptions();
+  }, []);
 
   return (
     <div>
       <h2 className="accent-text">🍽️ Restaurants</h2>
 
-      {/* 🎛️ NEW: Modular filter system - all filters have equal priority */}
-      <FilterContainer
-        onFiltersChange={handleFiltersChange}
-        onFiltersApply={handleFiltersApply}
-        isLoading={loading}
-      />
+      {/* 🔧 Filter controls */}
+      <form className="card"
+        onSubmit={e => {
+          e.preventDefault(); // Prevent page reload
+          fetchRestaurants(); // Apply filters
+        }}
+        style={{ marginBottom: '1rem', padding: '1rem' }}
+        aria-label="Restaurant filters"
+      >
+        {/* 🍜 Cuisine input with suggestions */}
+        <label htmlFor="cuisine-input">Cuisine:</label>
+        <input
+          id="cuisine-input"
+          list="cuisine-options"
+          placeholder="Type or choose cuisine"
+          value={selectedCuisine}
+          onChange={e => setSelectedCuisine(e.target.value)}
+          aria-label="Type or choose cuisine"
+        />
+        <datalist id="cuisine-options">
+          {cuisineOptions.map(c => (
+            <option key={c.id} value={c.name} />
+          ))}
+        </datalist>
 
-      {/* 📊 Filter summary */}
-      {currentFilters && hasActiveFilters(currentFilters) && (
-        <div className="active-filters-summary" style={{ marginBottom: '1rem', padding: '0.5rem', background: '#f8f9fa', borderRadius: '4px', fontSize: '0.9rem' }}>
-          <strong>Active filters:</strong> All working together with equal priority
+        {/* 🌍 Location input with suggestions */}
+        <label htmlFor="location-input">Location:</label>
+        <input
+          id="location-input"
+          list="location-options"
+          placeholder="Type or choose location"
+          value={selectedLocation}
+          onChange={e => setSelectedLocation(e.target.value)}
+          aria-label="Type or choose location"
+        />
+        <datalist id="location-options">
+          {locationOptions.map(l => (
+            <option key={l.id} value={l.name} />
+          ))}
+        </datalist>
+
+        {/* 🔎 Search input */}
+        <label htmlFor="search-input">Search:</label>
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Search by name"
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          aria-label="Search by restaurant name"
+        />
+
+        {/* 💸 Price range */}
+        <label htmlFor="min-price">Min price:</label>
+        <input
+          id="min-price"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          value={minPrice}
+          onChange={e => setMinPrice(e.target.value)}
+          aria-label="Minimum price"
+        />
+        <label htmlFor="max-price">Max price:</label>
+        <input
+          id="max-price"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="100.00"
+          value={maxPrice}
+          onChange={e => setMaxPrice(e.target.value)}
+          aria-label="Maximum price"
+        />
+
+        <button type="submit" className="accent-border">Apply Filters</button>
+        {/* Quick presets for price range */}
+        <div style={{ marginTop: '0.5rem' }}>
+          <button type="button" className="accent-border" onClick={() => { setMinPrice('0'); setMaxPrice('50'); }}>Under 50</button>
+          <button type="button" className="accent-border" onClick={() => { setMinPrice('50'); setMaxPrice('100'); }} style={{ marginLeft: '0.5rem' }}>50–100</button>
+          <button type="button" className="accent-border" onClick={() => { setMinPrice('100'); setMaxPrice('200'); }} style={{ marginLeft: '0.5rem' }}>100–200</button>
+          <button type="button" className="accent-border" onClick={() => { setMinPrice(''); setMaxPrice(''); }} style={{ marginLeft: '0.5rem' }}>Clear</button>
         </div>
-      )}
+      </form>
 
       {/* 🧾 Feedback messages */}
       {loading && <p>Loading restaurants...</p>}
@@ -278,9 +470,29 @@ const RestaurantList = () => {
         />
       </CollapsibleSection>
 
-      {/* 📋 Restaurant list - NEW: No client-side filtering, all done by backend with equal priority */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
-        {restaurants.map(r => (
+             {/* 📋 Restaurant list */}
+       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+         {(() => {
+            // Client-side fallback price filtering to handle cases where backend doesn't filter
+            const parsedMin = Number(minPrice);
+            const parsedMax = Number(maxPrice);
+            const hasMin = Number.isFinite(parsedMin);
+            const hasMax = Number.isFinite(parsedMax);
+
+            const list = restaurants.filter(r => {
+              if (!hasMin && !hasMax) return true;
+              const range = getRestaurantPriceRange(r);
+              // If we have no numeric info, include by default (do not hide possibly relevant entries)
+              if (!range) return true;
+              const { lower, upper } = range;
+
+              // Overlap check between [lower, upper] and [parsedMin, parsedMax]
+              const filterMin = hasMin ? parsedMin : -Infinity;
+              const filterMax = hasMax ? parsedMax : Infinity;
+              const overlaps = Math.max(lower, filterMin) <= Math.min(upper, filterMax);
+              return overlaps;
+            });
+            return list.map(r => (
            <Link key={r.id} to={`/restaurants/${r.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
              <div className="card" style={{ padding: '1rem', height: '100%', cursor: 'pointer', transition: 'all 0.2s ease' }}
              onMouseEnter={(e) => {
@@ -371,8 +583,9 @@ const RestaurantList = () => {
                </div>
              </div>
            </Link>
-        ))}
-      </div>
+          ));
+         })()}
+        </div>
 
       {/* Pagination controls removed in revert */}
     </div>

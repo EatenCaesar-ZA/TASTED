@@ -109,7 +109,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # In dev, allow the Vite dev server (default 5173) and common localhost variants
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
+    'http://localhost:5174',
     'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
 ]
 
 # ───────────────────────────────────── DRF Configuration ─────────────────────────────────────

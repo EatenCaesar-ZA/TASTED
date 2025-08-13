@@ -1,22 +1,32 @@
 /**
- * BudgetPlanner.tsx — Simple client-side budget tool
+ * BudgetPlanner.tsx — Enhanced budget tool with menu integration
  *
  * Responsibilities:
  * - Let users add items with prices, view running total, and remove items
+ * - Integrate with MenuViewer to receive items from menu browsing
+ * - Support restaurant context for better item organization
  * - Purely client-side; does not persist data (can be extended later)
  *
  * Extension points:
  * - Persist to localStorage or backend
  * - Add quantity fields and per-item notes
  * - Currency selection and locale-aware formatting
+ * - Export budget plans
+ * - Share budget with friends
  */
 import React, { useMemo, useState } from 'react';
 
-// Internal data structure for user-entered items
+// Enhanced data structure for budget items with restaurant context
 type BudgetItem = {
   id: string;
   name: string;
   price: number;
+  restaurantName?: string; // Optional restaurant context
+  addedAt: Date; // Timestamp for sorting and tracking
+  /** Optional quantity for the item; defaults to 1 when omitted */
+  quantity?: number;
+  /** Optional free-text note for the item */
+  note?: string;
 };
 
 // Format numbers as currency using the current locale
@@ -24,13 +34,39 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'ZAR' }).format(amount);
 }
 
-const BudgetPlanner: React.FC = () => {
+// Props for the BudgetPlanner component
+interface BudgetPlannerProps {
+  /** Callback to receive items added from menu integration or manual entry */
+  onItemAdded?: (item: BudgetItem) => void;
+  /** Callback when an item is removed */
+  onItemRemoved?: (itemId: string) => void;
+  /** Callback when all items should be cleared */
+  onClearAll?: () => void;
+  /** Callback when an item is updated (quantity, note, name, price) */
+  onItemUpdated?: (item: BudgetItem) => void;
+  /** The current list of budget items (controlled by parent) */
+  items: BudgetItem[];
+}
+
+/**
+ * BudgetPlanner Component
+ * 
+ * Enhanced budget planning tool that integrates with menu browsing:
+ * - Accepts items from MenuViewer component
+ * - Provides manual item entry interface
+ * - Shows restaurant context for better organization
+ * - Maintains running total with currency formatting
+ */
+const BudgetPlanner: React.FC<BudgetPlannerProps> = ({ 
+  onItemAdded,
+  onItemRemoved,
+  onClearAll,
+  onItemUpdated,
+  items
+}) => {
   // Controlled inputs for the item being created
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState<string>('');
-
-  // State: list of items the user added
-  const [items, setItems] = useState<BudgetItem[]>([]);
 
   // Derived: numeric version of the current input price for live preview
   const parsedPrice = useMemo(() => {
@@ -38,15 +74,18 @@ const BudgetPlanner: React.FC = () => {
     return Number.isFinite(n) ? n : 0;
   }, [itemPrice]);
 
-  // Derived: sum of all item prices
-  const total = useMemo(() => items.reduce((sum, item) => sum + item.price, 0), [items]);
+  // Derived: sum of all item prices with quantity support
+  const total = useMemo(() => 
+    items.reduce((sum, item) => sum + item.price * (item.quantity ?? 1), 0), 
+    [items]
+  );
 
   /**
    * Generate robust ids that work in browsers and hybrid runtimes.
    */
   function generateId(): string {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-      return (crypto as any).randomUUID();
+      return (crypto as Crypto).randomUUID();
     }
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
@@ -62,8 +101,10 @@ const BudgetPlanner: React.FC = () => {
       id: generateId(),
       name: itemName.trim(),
       price,
+      addedAt: new Date(),
+      quantity: 1,
     };
-    setItems(prev => [newItem, ...prev]);
+    onItemAdded?.(newItem);
     setItemName('');
     setItemPrice('');
   }
@@ -72,12 +113,17 @@ const BudgetPlanner: React.FC = () => {
    * Remove an item by id.
    */
   function removeItem(id: string) {
-    setItems(prev => prev.filter(i => i.id !== id));
+    onItemRemoved?.(id);
+  }
+
+  /** Update helper: emit updated item via callback if provided */
+  function updateItem(updated: BudgetItem) {
+    onItemUpdated?.(updated);
   }
 
   return (
-    <section aria-labelledby="budget-planner-heading">
-      <h2 id="budget-planner-heading">Budget Planner</h2>
+    <section aria-labelledby="budget-planner-heading" className="card" style={{ padding: '1rem' }}>
+      <h2 id="budget-planner-heading" className="accent-text">Budget Planner</h2>
 
       <form onSubmit={addItem} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <input
@@ -108,19 +154,122 @@ const BudgetPlanner: React.FC = () => {
 
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {items.map(item => (
-          <li key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
-            <span>{item.name}</span>
+          <li key={item.id} style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            padding: '0.75rem 0', 
+            borderBottom: '1px solid var(--border)' 
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: '500', color: 'var(--primary)' }}>{item.name}</div>
+              {item.restaurantName && (
+                <div style={{ 
+                  fontSize: '0.85rem', 
+                  color: 'var(--muted)', 
+                  fontStyle: 'italic',
+                  marginTop: '0.25rem'
+                }}>
+                  from {item.restaurantName}
+                </div>
+              )}
+              {/* Quantity and note controls */}
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  Qty:
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={item.quantity ?? 1}
+                    onChange={(e) => {
+                      const qty = Math.max(1, Number(e.target.value) || 1);
+                      updateItem({ ...item, quantity: qty });
+                    }}
+                    aria-label={`Quantity for ${item.name}`}
+                    style={{ marginLeft: '0.5rem', width: '4rem', padding: '0.25rem' }}
+                  />
+                </label>
+                <label style={{ fontSize: '0.85rem', color: 'var(--muted)', flex: 1, minWidth: '200px' }}>
+                  Note:
+                  <input
+                    type="text"
+                    value={item.note ?? ''}
+                    onChange={(e) => updateItem({ ...item, note: e.target.value })}
+                    placeholder="Add a note…"
+                    aria-label={`Note for ${item.name}`}
+                    style={{ marginLeft: '0.5rem', width: '100%', padding: '0.25rem' }}
+                  />
+                </label>
+              </div>
+            </div>
             <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <strong>{formatCurrency(item.price)}</strong>
-              <button onClick={() => removeItem(item.id)} aria-label={`Remove ${item.name}`}>Remove</button>
+              <strong className="accent-text">
+                {formatCurrency(item.price * (item.quantity ?? 1))}
+              </strong>
+              <button 
+                onClick={() => removeItem(item.id)} 
+                aria-label={`Remove ${item.name}`}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--primary)';
+                  e.currentTarget.style.color = 'var(--primary-contrast)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--text)';
+                }}
+              >
+                Remove
+              </button>
             </span>
           </li>
         ))}
       </ul>
 
-      <div style={{ marginTop: '1rem', fontSize: '1.1rem' }}>
-        <strong>Total: {formatCurrency(total)}</strong>
-      </div>
+             <div style={{ 
+         marginTop: '1rem', 
+         display: 'flex', 
+         justifyContent: 'space-between', 
+         alignItems: 'center',
+         fontSize: '1.1rem' 
+       }}>
+         <strong className="accent-text">Total: {formatCurrency(total)}</strong>
+         {items.length > 0 && (
+           <button
+             onClick={onClearAll}
+             style={{
+                padding: '0.5rem 1rem',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                backgroundColor: 'transparent',
+                color: 'var(--text)',
+               cursor: 'pointer',
+               fontSize: '0.9rem',
+               transition: 'all 0.2s ease'
+             }}
+             onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--primary)';
+                e.currentTarget.style.color = 'var(--primary-contrast)';
+             }}
+             onMouseLeave={(e) => {
+               e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--text)';
+             }}
+           >
+             🗑️ Clear All
+           </button>
+         )}
+       </div>
     </section>
   );
 };

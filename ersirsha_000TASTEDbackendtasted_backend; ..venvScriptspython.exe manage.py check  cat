@@ -1,0 +1,325 @@
+warning: in the working copy of 'frontend/tasted_mobile/my-app/src/components/RestaurantList.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/frontend/tasted_mobile/my-app/src/components/RestaurantList.tsx b/frontend/tasted_mobile/my-app/src/components/RestaurantList.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..1a1687e[m
+[1m--- /dev/null[m
+[1m+++ b/frontend/tasted_mobile/my-app/src/components/RestaurantList.tsx[m
+[36m@@ -0,0 +1,555 @@[m
+[32m+[m[32m/**[m
+[32m+[m[32m * RestaurantList.tsx — Browse and filter restaurants with integrated menu viewing[m
+[32m+[m[32m *[m
+[32m+[m[32m * Responsibilities:[m
+[32m+[m[32m * - Fetch restaurants from the backend with optional filters (cuisine, location, name search)[m
+[32m+[m[32m * - Fetch filter option lists (cuisines, locations)[m
+[32m+[m[32m * - Integrate with MenuViewer for inline menu display[m
+[32m+[m[32m * - Provide accessible form controls and clear loading/error states[m
+[32m+[m[32m * - Support budget integration through menu browsing[m
+[32m+[m[32m *[m
+[32m+[m[32m * Extension points:[m
+[32m+[m[32m * - Add pagination controls (we already accept paginated or array responses)[m
+[32m+[m[32m * - Add client-side caching (React Query/SWR) to avoid repeat fetches[m
+[32m+[m[32m * - Move inline styles to CSS modules or Tailwind for hybrid builds[m
+[32m+[m[32m * - Add menu comparison features[m
+[32m+[m[32m */[m
+[32m+[m[32mimport { useState, useEffect } from 'react';[m
+[32m+[m[32mimport api from '../api';[m
+[32m+[m[32mimport { Link } from 'react-router-dom';[m
+[32m+[m[32mimport CollapsibleSection from './CollapsibleSection';[m
+[32m+[m[32mimport MenuViewer from './MenuViewer';[m
+[32m+[m[32mimport BudgetPlanner from './BudgetPlanner';[m
+[32m+[m
+[32m+[m[32m// ✅ Strongly typed Restaurant interface for clarity and maintainability[m
+[32m+[m[32m// Data model from API: Restaurant object with nested relations for display[m
+[32m+[m[32mtype Restaurant = {[m
+[32m+[m[32m  id: number;[m
+[32m+[m[32m  name: string;[m
+[32m+[m[32m  cuisines?: { name: string }[];[m
+[32m+[m[32m  locations?: { name: string }[];[m
+[32m+[m[32m  image_url?: string;[m
+[32m+[m[32m  image?: string | null;[m
+[32m+[m[32m  menus?: { id: number; title: string; file_url: string; page_number?: number }[];[m
+[32m+[m[32m  min_item_price?: number | string | null;[m
+[32m+[m[32m  max_item_price?: number | string | null;[m
+[32m+[m[32m  average_item_price?: number | string | null;[m
+[32m+[m[32m  min_price_tag?: number | string | null;[m
+[32m+[m[32m  max_price_tag?: number | string | null;[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32m// Lightweight option type for dropdowns[m
+[32m+[m[32mtype Option = { id: number; name: string };[m
+[32m+[m
+[32m+[m[32m// Menu data structure for the viewer[m
+[32m+[m[32mtype Menu = {[m
+[32m+[m[32m  id: number;[m
+[32m+[m[32m  title: string;[m
+[32m+[m[32m  file_url: string;[m
+[32m+[m[32m  page_number?: number;[m
+[32m+[m[32m  restaurant?: {[m
+[32m+[m[32m    name: string;[m
+[32m+[m[32m  };[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32m// Budget item structure for integration[m
+[32m+[m[32mtype BudgetItem = {[m
+[32m+[m[32m  id: string;[m
+[32m+[m[32m  name: string;[m
+[32m+[m[32m  price: number;[m
+[32m+[m[32m  restaurantName?: string;[m
+[32m+[m[32m  addedAt: Date;[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32m// Helper: normalize DRF responses (supports both array and paginated { results: [] })[m
+[32m+[m[32mfunction unwrapResults<T>(data: unknown): T[] {[m
+[32m+[m[32m  if (Array.isArray(data)) return data as T[];[m
+[32m+[m[32m  if (data && typeof data === 'object' && 'results' in data && Array.isArray((data as { results: unknown[] }).results)) {[m
+[32m+[m[32m    return (data as { results: T[] }).results;[m
+[32m+[m[32m  }[m
+[32m+[m[32m  return [];[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m// Helper: robustly read price bounds from various possible field names[m
+[32m+[m[32mfunction toNumber(value: unknown): number | undefined {[m
+[32m+[m[32m  const n = Number(value);[m
+[32m+[m[32m  return Number.isFinite(n) ? n : undefined;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mfunction getRestaurantPriceRange(r: any): { lower: number; upper: number } | null {[m
+[32m+[m[32m  // Try multiple schema variants that might be present depending on creation path[m
+[32m+[m[32m  const minCandidates = [[m
+[32m+[m[32m    r?.min_price_tag,[m
+[32m+[m[32m    r?.min_item_price,[m
+[32m+[m[32m    r?.min_price,[m
+[32m+[m[32m    r?.price_min,[m
+[32m+[m[32m    r?.minPrice,[m
+[32m+[m[32m    r?.min_price_range,[m
+[32m+[m[32m  ];[m
+[32m+[m[32m  const maxCandidates = [[m
+[32m+[m[32m    r?.max_price_tag,[m
+[32m+[m[32m    r?.max_item_price,[m
+[32m+[m[32m    r?.max_price,[m
+[32m+[m[32m    r?.price_max,[m
+[32m+[m[32m    r?.maxPrice,[m
+[32m+[m[32m    r?.max_price_range,[m
+[32m+[m[32m  ];[m
+[32m+[m[32m  const avgCandidates = [r?.average_item_price, r?.avg_price, r?.averagePrice];[m
+[32m+[m
+[32m+[m[32m  const minVal = minCandidates.map(toNumber).find(v => v !== undefined);[m
+[32m+[m[32m  const maxVal = maxCandidates.map(toNumber).find(v => v !== undefined);[m
+[32m+[m[32m  const avgVal = avgCandidates.map(toNumber).find(v => v !== undefined);[m
+[32m+[m
+[32m+[m[32m  if (minVal === undefined && maxVal === undefined && avgVal === undefined) {[m
+[32m+[m[32m    return null;[m
+[32m+[m[32m  }[m
+[32m+[m[32m  if (minVal !== undefined && maxVal !== undefined) {[m
+[32m+[m[32m    return { lower: minVal, upper: maxVal };[m
+[32m+[m[32m  }[m
+[32m+[m[32m  if (avgVal !== undefined) {[m
+[32m+[m[32m    return { lower: avgVal, upper: avgVal };[m
+[32m+[m[32m  }[m
+[32m+[m[32m  // Only one bound known; use it for both as a narrow range[m
+[32m+[m[32m  const known = (minVal ?? maxVal) as number;[m
+[32m+[m[32m  return { lower: known, upper: known };[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/**[m
+[32m+[m[32m * 📦 RestaurantList component[m
+[32m+[m[32m * Fetches and displays restaurants from Django REST API with integrated menu viewing.[m
+[32m+[m[32m * Supports filtering by cuisine, location, and name search.[m
+[32m+[m[32m * Integrates with MenuViewer for inline menu display and budget planning.[m
+[32m+[m[32m */[m
+[32m+[m[32mconst RestaurantList = () => {[m
+[32m+[m[32m  // 🔧 State for restaurant data and UI feedback[m
+[32m+[m[32m  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);[m
+[32m+[m[32m  const [loading, setLoading] = useState(false);[m
+[32m+[m[32m  const [error, setError] = useState('');[m
+[32m+[m
+[32m+[m[32m  // 🔍 Filter states[m
+[32m+[m[32m  const [searchTerm, setSearchTerm] = useState('');[m
+[32m+[m[32m  const [selectedCuisine, setSelectedCuisine] = useState('');[m
+[32m+[m[32m  const [selectedLocation, setSelectedLocation] = useState('');[m
+[32m+[m[32m  const [minPrice, setMinPrice] = useState('');[m
+[32m+[m[32m  const [maxPrice, setMaxPrice] = useState('');[m
+[32m+[m
+[32m+[m[32m  const [cuisineOptions, setCuisineOptions] = useState<Option[]>([]);[m
+[32m+[m[32m  const [locationOptions, setLocationOptions] = useState<Option[]>([]);[m
+[32m+[m
+[32m+[m[32m  // 🍽️ Menu viewer state[m
+[32m+[m[32m  const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);[m
+[32m+[m[32m  const [isMenuViewerExpanded, setIsMenuViewerExpanded] = useState(false);[m
+[32m+[m[32m  const [selectedRestaurantName, setSelectedRestaurantName] = useState<string>('');[m
+[32m+[m
+[32m+[m[32m  // 💰 Budget integration state[m
+[32m+[m[32m  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);[m
+[32m+[m[32m  const [isBudgetExpanded, setIsBudgetExpanded] = useState(false);[m
+[32m+[m
+[32m+[m[32m  // Load budget items from localStorage on component mount[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const savedItems = localStorage.getItem('tasted-budget-items');[m
+[32m+[m[32m      if (savedItems) {[m
+[32m+[m[32m        const parsedItems = JSON.parse(savedItems);[m
+[32m+[m[32m        // Convert string dates back to Date objects[m
+[32m+[m[32m        const itemsWithDates = parsedItems.map((item: { addedAt: string; [key: string]: unknown }) => ({[m
+[32m+[m[32m          ...item,[m
+[32m+[m[32m          addedAt: new Date(item.addedAt)[m
+[32m+[m[32m        }));[m
+[32m+[m[32m        setBudgetItems(itemsWithDates);[m
+[32m+[m[32m      }[m
+[32m+[m[32m    } catch (error) {[m
+[32m+[m[32m      console.warn('Failed to load budget items from localStorage:', error);[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }, []);[m
+[32m+[m
+[32m+[m[32m  // Save budget items to localStorage whenever they change[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      localStorage.setItem('tasted-budget-items', JSON.stringify(budgetItems));[m
+[32m+[m[32m    } catch (error) {[m
+[32m+[m[32m      console.warn('Failed to save budget items to localStorage:', error);[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }, [budgetItems]);[m
+[32m+[m
+[32m+[m[32m  /**[m
+[32m+[m[32m   * 🍽️ Handle menu selection from restaurant[m
+[32m+[m[32m   */[m
+[32m+[m[32m  const handleMenuSelect = (menu: Menu, restaurantName: string) => {[m
+[32m+[m[32m    setSelectedMenu(menu);[m
+[32m+[m[32m    setSelectedRestaurantName(restaurantName);[m
+[32m+[m[32m    setIsMenuViewerExpanded(true);[m
+[32m+[m[32m    // Auto-collapse budget if it's taking up too much space[m
+[32m+[m[32m    if (isBudgetExpanded) {[m
+[32m+[m[32m      setIsBudgetExpanded(false);[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  /**[m
+[32m+[m[32m   * 💰 Handle adding items to budget from menu viewer[m
+[32m+[m[32m   */[m
+[32m+[m[32m  const handleAddToBudget = (itemName: string, price: number, restaurantName?: string) => {[m
+[32m+[m[32m    const newItem: BudgetItem = {[m
+[32m+[m[32m      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,[m
+[32m+[m[32m      name: itemName,[m
+[32m+[m[32m      price,[m
+[32m+[m[32m      restaurantName: restaurantName || selectedRestaurantName,[m
+[32m+[m[32m      addedAt: new Date(),[m
+[32m+[m[32m    };[m
+[32m+[m[32m    setBudgetItems(prev => [newItem, ...prev]);[m
+[32m+[m[32m    setIsBudgetExpanded(true); // Auto-expand budget to show new item[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  /**[m
+[32m+[m[32m   * 💰 Handle removing items from budget[m
+[32m+[m[32m   */[m
+[32m+[m[32m  const handleRemoveFromBudget = (itemId: string) => {[m
+[32m+[m[32m    setBudgetItems(prev => prev.filter(item => item.id !== itemId));[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  /**[m
+[32m+[m[32m   * 💰 Handle clearing all budget items[m
+[32m+[m[32m   */[m
+[32m+[m[32m  const handleClearAllBudget = () => {[m
+[32m+[m[32m    setBudgetItems([]);[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  /**[m
+[32m+[m[32m   * 🔄 Fetch restaurants from Django API with optional filters[m
+[32m+[m[32m   * Filters are passed as query parameters: cuisines, locations, and search[m
+[32m+[m[32m   */[m
+[32m+[m[32m  /**[m
+[32m+[m[32m   * Fetch restaurants from API applying current filters.[m
+[32m+[m[32m   * Accepts both paginated and non-paginated responses.[m
+[32m+[m[32m   */[m
+[32m+[m[32m  const fetchRestaurants = async () => {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      setLoading(true);[m
+[32m+[m[32m      setError('');[m
+[32m+[m
+[32m+[m[32m      // 🧮 Build query parameters dynamically[m
+[32m+[m[32m      const params = new URLSearchParams();[m
+[32m+[m[32m      if (selectedCuisine) {[m
+[32m+[m[32m        const match = cuisineOptions.find([m
+[32m+[m[32m          c => c.name.toLowerCase() === selectedCuisine.trim().toLowerCase()[m
+[32m+[m[32m        );[m
+[32m+[m[32m        if (match) params.append('cuisines', String(match.id));[m
+[32m+[m[32m        else params.append('cuisines__name', selectedCuisine.trim());[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (selectedLocation) {[m
+[32m+[m[32m        const match = locationOptions.find([m
+[32m+[m[32m          l => l.name.toLowerCase() === selectedLocation.trim().toLowerCase()[m
+[32m+[m[32m        );[m
+[32m+[m[32m        if (match) params.append('locations', String(match.id));[m
+[32m+[m[32m        else params.append('locations__name', selectedLocation.trim());[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (searchTerm) params.append('search', searchTerm);[m
+[32m+[m[32m      if (minPrice) params.append('min_price', minPrice);[m
+[32m+[m[32m      if (maxPrice) params.append('max_price', maxPrice);[m
+[32m+[m
+[32m+[m[32m      // 🌐 Make GET request to Django REST API[m
+[32m+[m[32m      const response = await api.get(`/api/v1/restaurants/?${params.toString()}`);[m
+[32m+[m[32m      const list = unwrapResults<Restaurant>(response.data);[m
+[32m+[m[32m      setRestaurants(list);[m
+[32m+[m[32m    } catch (err: unknown) {[m
+[32m+[m[32m      console.error('API error:', err);[m
+[32m+[m[32m      const error = err as { response?: { status?: number } };[m
+[32m+[m[32m      setError([m
+[32m+[m[32m        error.response?.status === 404[m
+[32m+[m[32m          ? 'No restaurants found for your filters.'[m
+[32m+[m[32m          : 'Failed to load restaurants. Please try again.'[m
+[32m+[m[32m      );[m
+[32m+[m[32m    } finally {[m
+[32m+[m[32m      setLoading(false);[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // 🚀 Initial fetch on component mount[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    fetchRestaurants();[m
+[32m+[m[32m  }, []); // eslint-disable-line react-hooks/exhaustive-deps[m
+[32m+[m
+[32m+[m[32m  // 🔁 Load filter option lists (cuisines, locations) on mount[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    async function loadOptions() {[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        const [cRes, lRes] = await Promise.all([[m
+[32m+[m[32m          api.get('/api/v1/cuisines/'),[m
+[32m+[m[32m          api.get('/api/v1/locations/'),[m
+[32m+[m[32m        ]);[m
+[32m+[m[32m        setCuisineOptions(unwrapResults<Option>(cRes.data));[m
+[32m+[m[32m        setLocationOptions(unwrapResults<Option>(lRes.data));[m
+[32m+[m[32m             } catch {[m
+[32m+[m[32m         // silent fail; options remain empty[m
+[32m+[m[32m       }[m
+[32m+[m[32m    }[m
+[32m+[m[32m    loadOptions();[m
+[32m+[m[32m  }, []);[m
+[32m+[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <div>[m
+[32m+[m[32m      <h2 className="accent-text">🍽️ Restaurants</h2>[m
+[32m+[m
+[32m+[m[32m      {/* 🔧 Filter controls */}[m
+[32m+[m[32m      <form className="card"[m
+[32m+[m[32m        onSubmit={e => {[m
+[32m+[m[32m          e.preventDefault(); // Prevent page reload[m
+[32m+[m[32m          fetchRestaurants(); // Apply filters[m
+[32m+[m[32m        }}[m
+[32m+[m[32m        style={{ marginBottom: '1rem', padding: '1rem' }}[m
+[32m+[m[32m        aria-label="Restaurant filters"[m
+[32m+[m[32m      >[m
+[32m+[m[32m        {/* 🍜 Cuisine input with suggestions */}[m
+[32m+[m[32m        <label htmlFor="cuisine-input">Cuisine:</label>[m
+[32m+[m[32m        <input[m
+[32m+[m[32m          id="cuisine-input"[m
+[32m+[m[32m          list="cuisine-options"[m
+[32m+[m[32m          placeholder="Type or choose cuisine"[m
+[32m+[m[32m          value={selectedCuisine}[m
+[32m+[m[32m          onChange={e => setSelectedCuisine(e.target.value)}[m
+[32m+[m[32m          aria-label="Type or choose cuisine"[m
+[32m+[m[32m        />[m
+[32m+[m[32m        <datalist id="cuisine-options">[m
+[32m+[m[32m          {cuisineOptions.map(c => ([m
+[32m+[m[32m            <option key={c.id} value={c.name} />[m
+[32m+[m[32m          ))}[m
+[32m+[m[32m        </datalist>[m
+[32m+[m
+
