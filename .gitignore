@@ -11,6 +11,11 @@ __pycache__/
 *.log
 .env
 db.sqlite3
+media/
+*.backup.*
+*backup.*
+*.local.*
+*.DS_Store
 
 # Node / Vite
 node_modules/
